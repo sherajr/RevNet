@@ -99,17 +99,67 @@ export default function Home() {
     });
 }
 
+async function handleReviewSubmit() {
+  if (window.ethereum) {
+    const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = web3Provider.getSigner();
+    eas.connect(signer);  // Connecting with the signer
+  } else {
+    console.error("Please install a web3 provider like Metamask");
+  }
+  // Here, you'll use the review state (review.trueProfile, review.rating, review.reviewText) to create the review attestation.
+  const schemaEncoder = new SchemaEncoder("bool trueProfile,uint8 rating,string review");
+  const encodedData = schemaEncoder.encodeData([
+      { name: "trueProfile", value: review.trueProfile, type: "bool" },
+      { name: "rating", value: review.rating, type: "uint8" },
+      { name: "review", value: review.reviewText, type: "string" },
+  ]);
+
+  const schemaUID = "0x4ba4f9ba4c0ce9eacbe7298dbc8d2434588d95b75e52de343dd7ac99046e6107";
+
+  const tx = await eas.attest({
+    schema: schemaUID,
+    data: {
+      recipient: userBeingReviewedAddress,
+      expirationTime: 0,
+      revocable: true,
+      refUID: userBeingReviewedId,
+      data: encodedData,
+    },
+  });
+  
+  // After attestation, you might want to close the modal
+  setIsReviewModalOpen(false);
+  // And clear the review data
+  setReview({
+      trueProfile: false,
+      rating: 0,
+      reviewText: ''
+  });
+}
+
+
 
   const storage = useStorage();
 
   const [attestationData, setAttestationData] = useState(null);
   // const [schemaData, setSchemaData] = useState(null);
   const [attestations, setAttestations] = useState([]);
+  const [reviews, setReviews]=useState([]);
   const [profile, setProfile] = useState(null);
   const [username, setUsername] = useState('');
   const [twitterHandle, setTwitterHandle] = useState('');
   const [aboutMe, setAboutMe] = useState('');
   const [pfp, setPfp] = useState(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [userBeingReviewedAddress, setUserBeingReviewedAddress] = useState(null);
+  const [review, setReview] = useState({
+      trueProfile: false,
+      rating: 0,
+      reviewText: ''
+  });
+  const [userBeingReviewedId, setUserBeingReviewedId] = useState(null);
+
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -128,22 +178,33 @@ export default function Home() {
         id
         recipient
         data
+        refUID
       }
     }
     `;
 
     fetchGraphQLData(endpoint, query)
-    .then(data => {
-        if (data.data && data.data.attestations) {
-            const filteredAttestations = data.data.attestations.filter(attestation => attestation.schemaId === "0xa2fef44eb7eef2a4d04d3811bd15bc66d8bcdfd8bf23d438f8c667e64a2f97e5");
-            setAttestations(filteredAttestations);
-            console.log('filteredAttestations', filteredAttestations)
-        }
-    })
-    .catch(error => {
-        console.error("Error fetching attestations:", error);
-    });      
-}, []);
+          .then(data => {
+              if (data.data && data.data.attestations) {
+                  const userSchemaUID = "0xa2fef44eb7eef2a4d04d3811bd15bc66d8bcdfd8bf23d438f8c667e64a2f97e5";
+                  const reviewSchemaUID = "0x4ba4f9ba4c0ce9eacbe7298dbc8d2434588d95b75e52de343dd7ac99046e6107";
+
+                  const filteredAttestations = data.data.attestations.filter(attestation => attestation.schemaId === userSchemaUID);
+                  setAttestations(filteredAttestations);
+                  console.log('filteredAttestations', filteredAttestations)
+
+                  const filteredReviews = data.data.attestations.filter(attestation => 
+                      attestation.schemaId === reviewSchemaUID && 
+                      filteredAttestations.some(userAttest => userAttest.id === attestation.refUID)
+                  );
+                  setReviews(filteredReviews);
+                  console.log('filteredReviews', filteredReviews)
+              }
+          })
+          .catch(error => {
+              console.error("Error fetching attestations:", error);
+          });      
+      }, []);
 
   // useEffect(() => {
   //   const fetchAttestation = async () => {
@@ -249,15 +310,50 @@ export default function Home() {
 
                 return (
                     <div key={attestation.id}>
-                        <p className="gradient-text-0">{username}</p>
+                        <p className="gradient-text-1">{username}</p>
                         <p className="small-font">User Address: {attestation.recipient}</p>
                         <MediaRenderer src={profilePicture} className="card" />
                         <p>Twitter: {twitterUsername}</p>
                         <p className="small-font">{aboutMe}</p>
+                        <button onClick={() => {
+                            setUserBeingReviewedAddress(attestation.recipient);
+                            setUserBeingReviewedId(attestation.id)
+                            setIsReviewModalOpen(true);
+                        }}>
+                            Review
+                        </button>
                     </div>
+                    
                 );
             })}
         </div>
+        {isReviewModalOpen && (
+          <div className="modal open" onClick={() => setIsReviewModalOpen(false)}>
+              <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <p className="gradient-text-1">Review for {userBeingReviewedAddress}</p>
+                
+                <label>
+                    <input type="checkbox" checked={review.trueProfile} onChange={(e) => setReview(prev => ({ ...prev, trueProfile: e.target.checked }))} />
+                    This is a true profile to the best of my knowledge.
+                </label>
+<p></p>
+                <label>
+                    Rating:
+                    {[1, 2, 3, 4, 5].map(star => (
+                        <span key={star} onClick={() => setReview(prev => ({ ...prev, rating: star }))}>
+                            {star <= review.rating ? '★' : '☆'}
+                        </span>
+                    ))}
+                </label>
+
+                <textarea value={review.reviewText} onChange={(e) => setReview(prev => ({ ...prev, reviewText: e.target.value }))} placeholder="Your review..."></textarea>
+
+                <button onClick={handleReviewSubmit}>Submit Review</button>
+                <button onClick={() => setIsReviewModalOpen(false)}>Close</button>
+        </div>
+    </div>
+)}
+
 
 
 

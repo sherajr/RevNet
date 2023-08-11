@@ -25,7 +25,6 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  font-size: 1.5rem;
 }
 
 .gradient-text-1 {
@@ -33,6 +32,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  font-size: 1.5rem;
 }
 
 .gradient-text-2 {
@@ -98,6 +98,36 @@
   justify-items: center;
   align-items: start;
 }
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; 
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0.3s, opacity 0.3s;
+}
+
+.modal-content {
+  width: 80%;
+  max-width: 800px;
+  padding: 20px;
+  background: #67510a;
+  border-radius: 10px;
+}
+
+.modal.open {
+  visibility: visible;
+  opacity: 1;
+}
+
 
 
 .card {
@@ -172,3 +202,4 @@
 .small-font {
   font-size: 0.8rem; /* Adjust as needed */
 }
+
