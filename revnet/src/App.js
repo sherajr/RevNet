@@ -103,7 +103,7 @@ export default function Home() {
   const storage = useStorage();
 
   const [attestationData, setAttestationData] = useState(null);
-  const [schemaData, setSchemaData] = useState(null);
+  // const [schemaData, setSchemaData] = useState(null);
   const [attestations, setAttestations] = useState([]);
   const [profile, setProfile] = useState(null);
   const [username, setUsername] = useState('');
@@ -114,10 +114,10 @@ export default function Home() {
 
   useEffect(() => {
     if (address) {
-      // Query the GraphQL API to check if a profile with the connected Ethereum address exists.
-      // If it exists, set the profile state with the fetched data.
+        const hasExistingProfile = attestations.some(attestation => attestation.recipient.toLowerCase() === address.toLowerCase());
+        setProfile(hasExistingProfile);
     }
-  }, [address, profile]);
+}, [address, attestations]);
 
   useEffect(() => {
     const endpoint = "https://base-goerli.easscan.org/graphql";
@@ -145,18 +145,18 @@ export default function Home() {
     });      
 }, []);
 
-  useEffect(() => {
-    const fetchAttestation = async () => {
-        const attestation = await eas.getAttestation(uid);
-        const schemaRecord = await schemaRegistry.getSchema({ uid: schemaUID });
-        setAttestationData(attestation);
-        setSchemaData(schemaRecord);
-        console.log('attestation', attestation);
-        console.log('schema', schemaRecord);
-    };
+  // useEffect(() => {
+  //   const fetchAttestation = async () => {
+  //       const attestation = await eas.getAttestation(uid);
+  //       const schemaRecord = await schemaRegistry.getSchema({ uid: schemaUID });
+  //       setAttestationData(attestation);
+  //       setSchemaData(schemaRecord);
+  //       console.log('attestation', attestation);
+  //       console.log('schema', schemaRecord);
+  //   };
   
-    fetchAttestation();
-  }, []); // Empty dependency array means this effect will run once when the component mounts.
+  //   fetchAttestation();
+  // }, []); // Empty dependency array means this effect will run once when the component mounts.
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
@@ -237,23 +237,23 @@ export default function Home() {
           )}
 
 
-        <div className="code">
+        {/* <div className="code">
         <h2>Schema Data</h2>
         <pre>{JSON.stringify(schemaData, null, 3)}</pre>
         <h2>Attestation Data</h2>
         <pre>{JSON.stringify(attestationData, null, 1)}</pre>
-        </div>
-        <div>
+        </div> */}
+        <div className="user-grid">
             {attestations.map(attestation => {
                 const [username, profilePicture, twitterUsername, aboutMe] = decodeABIString(attestation.data);
 
                 return (
                     <div key={attestation.id}>
-                        <p>User Address: {attestation.recipient}</p>
-                        <p>Username: {username}</p>
-                        <p>Profile Picture: {profilePicture}</p>
-                        <p>Twitter Handle: {twitterUsername}</p>
-                        <p>About Me: {aboutMe}</p>
+                        <p className="gradient-text-0">{username}</p>
+                        <p className="small-font">User Address: {attestation.recipient}</p>
+                        <MediaRenderer src={profilePicture} className="card" />
+                        <p>Twitter: {twitterUsername}</p>
+                        <p className="small-font">{aboutMe}</p>
                     </div>
                 );
             })}

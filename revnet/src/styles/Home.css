@@ -25,6 +25,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  font-size: 1.5rem;
 }
 
 .gradient-text-1 {
@@ -89,6 +90,15 @@
   flex-wrap: wrap;
   gap: 20px;
 }
+
+.user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); /* Adjust the 240px if you need larger or smaller blocks */
+  gap: 20px; /* Gap between grid items */
+  justify-items: center;
+  align-items: start;
+}
+
 
 .card {
   background-color: #131313;
@@ -157,4 +167,8 @@
 }
 .logo img {
   filter: invert(1);
+}
+
+.small-font {
+  font-size: 0.8rem; /* Adjust as needed */
 }
