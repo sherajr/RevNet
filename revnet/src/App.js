@@ -37,6 +37,26 @@ function decodeABIString(data) {
   return decodedData;
 }
 
+function decodeReviewData(data) {
+  const abiCoder = new ethers.utils.AbiCoder();
+  const decodedData = abiCoder.decode(
+      ["bool", "uint8", "string"],
+      data
+  );
+
+  return decodedData;
+}
+
+function decodeReplyData(data) {
+  const abiCoder = new ethers.utils.AbiCoder();
+  const decodedData = abiCoder.decode(
+      ["bool", "string"],
+      data
+  );
+
+  return decodedData;
+}
+
 
 export default function Home() {
 
@@ -138,6 +158,43 @@ async function handleReviewSubmit() {
   });
 }
 
+async function handleReplySubmit(reviewAttestationId) {
+  if (window.ethereum) {
+      const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = web3Provider.getSigner();
+      eas.connect(signer);  // Connecting with the signer
+  } else {
+      console.error("Please install a web3 provider like Metamask");
+  }
+  
+  const replySchemaUID = "0x275d3c62f5dd03970225e637b074f4e2ca03429bf3fcef3fcd0b4274171053e7";
+  // Encode the reply data
+  const schemaEncoder = new SchemaEncoder("bool like, string reply");
+  const encodedData = schemaEncoder.encodeData([
+      { name: "like", value: reply.like, type: "bool" },
+      { name: "reply", value: reply.replyText, type: "string" },
+  ]);
+
+  // Submit the attestation, linking the reply to the review via refUID
+  const tx = await eas.attest({
+      schema: replySchemaUID,
+      data: {
+          recipient: address,
+          expirationTime: 0,
+          revocable: true,
+          refUID: reviewAttestationId, // Using the review attestation ID passed to the function
+          data: encodedData,
+      },
+  });
+
+  // After attestation, you might want to close the reply modal (if you have one) 
+  // and clear the reply data
+  setReply({
+      like: false,
+      replyText: ''
+  });
+}
+
 
 
   const storage = useStorage();
@@ -159,6 +216,14 @@ async function handleReviewSubmit() {
       reviewText: ''
   });
   const [userBeingReviewedId, setUserBeingReviewedId] = useState(null);
+  const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
+  const [reply, setReply] = useState({
+      like: false,
+      replyText: ''
+  });
+  const [reviewBeingRepliedTo, setReviewBeingRepliedTo] = useState(null);
+  const [replies, setReplies] = useState([]);
+
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -169,42 +234,61 @@ async function handleReviewSubmit() {
     }
 }, [address, attestations]);
 
-  useEffect(() => {
-    const endpoint = "https://base-goerli.easscan.org/graphql";
-    const query = `
-    query Attestations {
-      attestations(orderBy: {schemaId: desc}) {
-        schemaId
-        id
-        recipient
-        data
-        refUID
-      }
+useEffect(() => {
+  const endpoint = "https://base-goerli.easscan.org/graphql";
+  const query = `
+  query Attestations {
+    attestations(orderBy: {schemaId: desc}) {
+      schemaId
+      id
+      recipient
+      data
+      refUID
     }
-    `;
+  }
+  `;
 
-    fetchGraphQLData(endpoint, query)
-          .then(data => {
-              if (data.data && data.data.attestations) {
-                  const userSchemaUID = "0xa2fef44eb7eef2a4d04d3811bd15bc66d8bcdfd8bf23d438f8c667e64a2f97e5";
-                  const reviewSchemaUID = "0x4ba4f9ba4c0ce9eacbe7298dbc8d2434588d95b75e52de343dd7ac99046e6107";
+  fetchGraphQLData(endpoint, query)
+        .then(data => {
+            if (data.data && data.data.attestations) {
+                const userSchemaUID = "0xa2fef44eb7eef2a4d04d3811bd15bc66d8bcdfd8bf23d438f8c667e64a2f97e5";
+                const reviewSchemaUID = "0x4ba4f9ba4c0ce9eacbe7298dbc8d2434588d95b75e52de343dd7ac99046e6107";
 
-                  const filteredAttestations = data.data.attestations.filter(attestation => attestation.schemaId === userSchemaUID);
-                  setAttestations(filteredAttestations);
-                  console.log('filteredAttestations', filteredAttestations)
+                const filteredAttestations = data.data.attestations.filter(attestation => attestation.schemaId === userSchemaUID);
+                setAttestations(filteredAttestations);
+                console.log('filteredAttestations', filteredAttestations);
 
-                  const filteredReviews = data.data.attestations.filter(attestation => 
-                      attestation.schemaId === reviewSchemaUID && 
-                      filteredAttestations.some(userAttest => userAttest.id === attestation.refUID)
-                  );
-                  setReviews(filteredReviews);
-                  console.log('filteredReviews', filteredReviews)
-              }
-          })
-          .catch(error => {
-              console.error("Error fetching attestations:", error);
-          });      
-      }, []);
+                const filteredReviews = data.data.attestations.filter(attestation => 
+                    attestation.schemaId === reviewSchemaUID && 
+                    filteredAttestations.some(userAttest => userAttest.id === attestation.refUID)
+                );
+                setReviews(filteredReviews);
+                console.log('filteredReviews', filteredReviews);
+
+                const replySchemaUID = "0x275d3c62f5dd03970225e637b074f4e2ca03429bf3fcef3fcd0b4274171053e7";
+                const filteredReplies = data.data.attestations.filter(attestation => 
+                    attestation.schemaId === replySchemaUID && 
+                    filteredReviews.some(review => review.id === attestation.refUID)
+                );
+                setReplies(filteredReplies);
+                console.log('filteredReplies', filteredReplies);
+
+            }
+        })
+        .catch(error => {
+            console.error("Error fetching attestations:", error);
+        });      
+}, []);
+
+useEffect(() => {
+  console.log("All Reviews:", reviews);
+}, [reviews]);
+
+useEffect(() => {
+  console.log("All Replies:", replies);
+}, [replies]);
+
+
 
   // useEffect(() => {
   //   const fetchAttestation = async () => {
@@ -305,28 +389,84 @@ async function handleReviewSubmit() {
         <pre>{JSON.stringify(attestationData, null, 1)}</pre>
         </div> */}
         <div className="user-grid">
-            {attestations.map(attestation => {
-                const [username, profilePicture, twitterUsername, aboutMe] = decodeABIString(attestation.data);
+          {attestations.map(attestation => {
+              const [username, profilePicture, twitterUsername, aboutMe] = decodeABIString(attestation.data);
+              const userReviews = reviews.filter(review => review.refUID === attestation.id);
 
-                return (
-                    <div key={attestation.id}>
-                        <p className="gradient-text-1">{username}</p>
-                        <p className="small-font">User Address: {attestation.recipient}</p>
-                        <MediaRenderer src={profilePicture} className="card" />
-                        <p>Twitter: {twitterUsername}</p>
-                        <p className="small-font">{aboutMe}</p>
-                        <button onClick={() => {
-                            setUserBeingReviewedAddress(attestation.recipient);
-                            setUserBeingReviewedId(attestation.id)
-                            setIsReviewModalOpen(true);
-                        }}>
-                            Review
-                        </button>
-                    </div>
-                    
-                );
-            })}
-        </div>
+            
+
+              // Calculate the number of reviews that state the profile is true
+              const trueReviewsCount = userReviews.reduce((count, reviewAttestation) => {
+                  const [trueProfile, ] = decodeReviewData(reviewAttestation.data);
+                  return trueProfile ? count + 1 : count;
+              }, 0);
+
+              // Calculate the "Profile Authenticity" percentage
+              const authenticityPercentage = ((trueReviewsCount / userReviews.length) * 100).toFixed(0); // Rounded to the nearest whole number
+
+              // Calculate the average rating
+              const totalRating = userReviews.reduce((sum, reviewAttestation) => {
+                  const [, rating, ] = decodeReviewData(reviewAttestation.data);
+                  return sum + rating;
+              }, 0);
+              const averageRating = (totalRating / userReviews.length).toFixed(1);
+
+              return (
+                  <div key={attestation.id} className="user-card">
+                      <p className="gradient-text-1">{username}</p>
+                      <p className="small-font">User Address: {attestation.recipient}</p>
+                      <MediaRenderer src={profilePicture} className="card" />
+                      <p>Twitter: {twitterUsername}</p>
+                      <p className="small-font">{aboutMe}</p>
+                      <p>Profile Authenticity: {authenticityPercentage}%</p>
+                      <p>Average Rating: {averageRating}⭐</p>
+                      <button onClick={() => {
+                          setUserBeingReviewedAddress(attestation.recipient);
+                          setUserBeingReviewedId(attestation.id)
+                          setIsReviewModalOpen(true);
+                      }}>
+                          Review
+                      </button>
+                      
+                      {/* Render Reviews for this user */}
+                      {userReviews.map(reviewAttestation => { // Here's where reviewAttestation is defined
+                        const [trueProfile, , reviewText] = decodeReviewData(reviewAttestation.data);
+                        
+                        // Filter replies specifically for the current review
+                        const repliesForCurrentReview = replies.filter(replyAttestation => 
+                            reviewAttestation.id === replyAttestation.refUID
+                        );
+                        console.log(`Replies for user ${attestation.recipient}`, repliesForCurrentReview);
+
+                        return (
+                          <div key={reviewAttestation.id} className="review-card">
+                          <p><strong>Reviewer:</strong> {reviewAttestation.recipient}</p>
+                          <p><strong>Review:</strong> {reviewText}</p>
+                          <button onClick={() => {
+                              setReviewBeingRepliedTo(reviewAttestation.id);  // store the ID of the review being replied to
+                              setIsReplyModalOpen(true);  // open the reply modal
+                          }}>
+                              Reply
+                          </button>
+                                <div className="replies">
+                                    {repliesForCurrentReview.map(replyAttestation => { // Using repliesForCurrentReview
+                                        const [like, replyText] = decodeReplyData(replyAttestation.data);
+                                        return (
+                                            <div key={replyAttestation.id} className="reply">
+                                                <p>{replyText}</p>
+                                                {like && <span>👍</span>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+                  </div>
+              );
+          })}
+      </div>
+
         {isReviewModalOpen && (
           <div className="modal open" onClick={() => setIsReviewModalOpen(false)}>
               <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -354,6 +494,23 @@ async function handleReviewSubmit() {
     </div>
 )}
 
+{isReplyModalOpen && (
+    <div className="modal open" onClick={() => setIsReplyModalOpen(false)}>
+        <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <p>Reply to Review</p>
+            
+            <label>
+                <input type="checkbox" checked={reply.like} onChange={(e) => setReply(prev => ({ ...prev, like: e.target.checked }))} />
+                Like this review
+            </label>
+
+            <textarea value={reply.replyText} onChange={(e) => setReply(prev => ({ ...prev, replyText: e.target.value }))} placeholder="Your reply..."></textarea>
+
+            <button onClick={() => handleReplySubmit(reviewBeingRepliedTo)}>Submit Reply</button>
+            <button onClick={() => setIsReplyModalOpen(false)}>Close</button>
+        </div>
+    </div>
+)}
 
 
 
