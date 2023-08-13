@@ -24,7 +24,7 @@ Before you dive in, ensure you have the necessary dependencies and environment v
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/your-username/RevNet.git
+    git clone https://github.com/sherajr/RevNet.git
     ```
 2. Navigate to the project directory:
     ```bash
